@@ -8,7 +8,6 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.InstallSourceInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -240,7 +239,7 @@ public class MainActivity extends Activity {
         }
 
         packageEntries.clear();
-        final List<ApplicationInfo> applications = findDisabledPlayStoreApplications(packageManager);
+        final List<ApplicationInfo> applications = findDeepSleepingApplications(packageManager);
         Collections.sort(applications, Comparator.comparing(
                 applicationInfo -> applicationLabel(applicationInfo).toLowerCase(Locale.ROOT)
         ));
@@ -326,7 +325,7 @@ public class MainActivity extends Activity {
                 continue;
             }
 
-            if (isApplicationDisabled(packageManager, entry.packageName)) {
+            if (isApplicationDeepSleeping(packageManager, entry.packageName)) {
                 entry.status = AppStatus.QUEUED;
                 stillDisabled.add(entry.packageName);
             } else {
@@ -501,65 +500,40 @@ public class MainActivity extends Activity {
         return ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED;
     }
 
-    private static List<ApplicationInfo> findDisabledPlayStoreApplications(PackageManager packageManager) {
+    private static List<ApplicationInfo> findDeepSleepingApplications(PackageManager packageManager) {
         final List<ApplicationInfo> applications = new ArrayList<>();
         for (ApplicationInfo applicationInfo : getInstalledApplications(packageManager)) {
-            if ((applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0
-                    && !applicationInfo.enabled
-                    && isInstalledFromPlayStore(packageManager, applicationInfo.packageName)) {
+            if (isApplicationDeepSleeping(packageManager, applicationInfo.packageName)) {
                 applications.add(applicationInfo);
             }
         }
         return applications;
     }
 
-    private static boolean isApplicationDisabled(PackageManager packageManager, String packageName) {
+    private static boolean isApplicationDeepSleeping(PackageManager packageManager, String packageName) {
         try {
-            final ApplicationInfo applicationInfo;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                applicationInfo = packageManager.getApplicationInfo(
-                        packageName,
-                        PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_DISABLED_COMPONENTS)
-                );
-            } else {
-                applicationInfo = getApplicationInfoLegacy(packageManager, packageName);
-            }
-            return !applicationInfo.enabled;
-        } catch (PackageManager.NameNotFoundException ignored) {
+            final int state = packageManager.getApplicationEnabledSetting(packageName);
+            return state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                    || state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED;
+        } catch (IllegalArgumentException ignored) {
             return false;
         }
-    }
-
-    @SuppressWarnings("deprecation")
-    private static ApplicationInfo getApplicationInfoLegacy(
-            PackageManager packageManager,
-            String packageName
-    ) throws PackageManager.NameNotFoundException {
-        return packageManager.getApplicationInfo(packageName, PackageManager.MATCH_DISABLED_COMPONENTS);
     }
 
     @SuppressWarnings("deprecation")
     private static Iterable<ApplicationInfo> getInstalledApplications(PackageManager packageManager) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             return packageManager.getInstalledApplications(
-                    PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_DISABLED_COMPONENTS)
+                    PackageManager.ApplicationInfoFlags.of(
+                            PackageManager.MATCH_DISABLED_COMPONENTS
+                                    | PackageManager.MATCH_DISABLED_UNTIL_USED_COMPONENTS
+                    )
             );
         }
-        return packageManager.getInstalledApplications(PackageManager.MATCH_DISABLED_COMPONENTS);
-    }
-
-    @SuppressWarnings("deprecation")
-    private static boolean isInstalledFromPlayStore(PackageManager packageManager, String packageName) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            try {
-                final InstallSourceInfo installSourceInfo = packageManager.getInstallSourceInfo(packageName);
-                return PLAY_STORE_PACKAGE.equals(installSourceInfo.getInstallingPackageName())
-                        || PLAY_STORE_PACKAGE.equals(installSourceInfo.getInitiatingPackageName());
-            } catch (PackageManager.NameNotFoundException ignored) {
-                return false;
-            }
-        }
-        return PLAY_STORE_PACKAGE.equals(packageManager.getInstallerPackageName(packageName));
+        return packageManager.getInstalledApplications(
+                PackageManager.MATCH_DISABLED_COMPONENTS
+                        | PackageManager.MATCH_DISABLED_UNTIL_USED_COMPONENTS
+        );
     }
 
     private static final class PackageEntry {

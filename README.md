@@ -6,7 +6,7 @@ _Runner_ is a simple app allowing you to update [**Deep sleeping apps**](https:/
 
 If you have this feature enabled, unused (as well as manually added) apps will be added to this list. The problem is that these sleeping apps are not visible to _Play Store_, which cannot update them, unless they are temporarily enabled by launching.
 
-This is pretty much how _Runner_ works: it shows the detected user-installed (non-system) deep sleeping apps in a terminal-style console, then activates them one at a time. Runner verifies that each app became active and retries apps that are still disabled. A `[✅]` marks each verified active app. Once you turn off the screen, One UI can put these apps back to sleep.
+This is pretty much how _Runner_ works: it shows the detected deep sleeping apps in a terminal-style console, then activates them one at a time. Runner detects the Android "disabled until used" state One UI uses for deep sleeping apps, verifies that each app became active, and retries apps that remain in that state. A `[✅]` marks each verified active app. Once you turn off the screen, One UI can put these apps back to sleep.
 
 ## How to update deep sleeping apps
 
