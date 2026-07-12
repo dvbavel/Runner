@@ -19,7 +19,7 @@ android {
         targetSdk {
             version = release(36)
         }
-        versionCode = 8
+        versionCode = 9
         versionName = "0.${versionCode}"
     }
 

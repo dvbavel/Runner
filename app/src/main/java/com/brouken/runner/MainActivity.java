@@ -20,7 +20,6 @@ import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
-import android.view.WindowInsetsController;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -105,13 +104,6 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(COLOR_BACKGROUND);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getWindow().setNavigationBarContrastEnforced(false);
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            getWindow().getInsetsController().setSystemBarsAppearance(
-                    0,
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                            | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-            );
         }
     }
 
