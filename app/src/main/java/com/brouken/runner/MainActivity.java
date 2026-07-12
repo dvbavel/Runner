@@ -38,8 +38,8 @@ public class MainActivity extends Activity {
     private static final String PLAY_STORE_PACKAGE = "com.android.vending";
     private static final String SAMSUNG_DEVICE_CARE_PACKAGE = "com.samsung.android.lool";
     private static final int MAX_ATTEMPTS = 3;
-    private static final long TARGET_VISIBLE_DURATION_MS = 650;
-    private static final long RUNNER_RETURN_SETTLE_DURATION_MS = 350;
+    private static final long TARGET_VISIBLE_DURATION_MS = 3_000;
+    private static final long RUNNER_RETURN_SETTLE_DURATION_MS = 400;
     private static final long VERIFICATION_DELAY_MS = 2_000;
 
     private static final int COLOR_BACKGROUND = Color.rgb(10, 15, 13);
