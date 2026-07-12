@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Runner</string>
+    <string name="status_scanning">Checking deep sleeping apps&#8230;</string>
+    <string name="status_activating">Activating app %1$d of %2$d (attempt %3$d of %4$d)&#8230;</string>
+    <plurals name="status_failed">
+        <item quantity="one">%d app could not be activated. Opening Deep sleeping apps.</item>
+        <item quantity="other">%d apps could not be activated. Opening Deep sleeping apps.</item>
+    </plurals>
 </resources>

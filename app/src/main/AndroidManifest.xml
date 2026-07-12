@@ -17,8 +17,7 @@
             android:name=".MainActivity"
             android:excludeFromRecents="true"
             android:exported="true"
-            android:noHistory="true"
-            android:theme="@android:style/Theme.NoDisplay">
+            android:theme="@android:style/Theme.Material.Light.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
