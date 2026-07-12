@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -315,7 +316,9 @@ public class MainActivity extends Activity {
                 MAX_ATTEMPTS
         );
         renderConsole();
-        launchPackage(packageManager, packageName);
+        if (!launchPackage(packageManager, packageName) && entry != null) {
+            entry.status = AppStatus.FAILED;
+        }
         handler.postDelayed(this::returnToConsoleAndContinue, TARGET_VISIBLE_DURATION_MS);
     }
 
@@ -419,22 +422,23 @@ public class MainActivity extends Activity {
         return row;
     }
 
-    private void launchPackage(PackageManager packageManager, String packageName) {
+    private boolean launchPackage(PackageManager packageManager, String packageName) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             try {
                 startIntentSenderWithUserInitiatedPrivileges(
                         packageManager.getLaunchIntentSenderForPackage(packageName)
                 );
-                return;
-            } catch (IntentSender.SendIntentException | SecurityException ignored) {
+                return true;
+            } catch (ActivityNotFoundException
+                    | IllegalArgumentException
+                    | IntentSender.SendIntentException
+                    | SecurityException ignored) {
                 // Fall back to the regular launch intent below.
             }
         }
 
         final Intent launchIntent = packageManager.getLaunchIntentForPackage(packageName);
-        if (launchIntent != null) {
-            startActivitySafely(launchIntent);
-        }
+        return launchIntent != null && startActivitySafely(launchIntent);
     }
 
     private void openPlayStore(PackageManager packageManager) {
@@ -485,7 +489,10 @@ public class MainActivity extends Activity {
                 startActivity(intent);
             }
             return true;
-        } catch (ActivityNotFoundException | PendingIntent.CanceledException | SecurityException ignored) {
+        } catch (ActivityNotFoundException
+                | IllegalArgumentException
+                | PendingIntent.CanceledException
+                | SecurityException ignored) {
             return false;
         }
     }
@@ -509,11 +516,44 @@ public class MainActivity extends Activity {
     private static List<ApplicationInfo> findDeepSleepingApplications(PackageManager packageManager) {
         final List<ApplicationInfo> applications = new ArrayList<>();
         for (ApplicationInfo applicationInfo : getInstalledApplications(packageManager)) {
-            if (isApplicationDeepSleeping(packageManager, applicationInfo.packageName)) {
+            if ((applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0
+                    && hasLaunchableActivity(packageManager, applicationInfo.packageName)
+                    && isApplicationDeepSleeping(packageManager, applicationInfo.packageName)) {
                 applications.add(applicationInfo);
             }
         }
         return applications;
+    }
+
+    private static boolean hasLaunchableActivity(PackageManager packageManager, String packageName) {
+        final Intent intent = new Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER)
+                .setPackage(packageName);
+        final long flags = PackageManager.MATCH_DISABLED_COMPONENTS
+                | PackageManager.MATCH_DISABLED_UNTIL_USED_COMPONENTS;
+        try {
+            final List<ResolveInfo> activities;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                activities = packageManager.queryIntentActivities(
+                        intent,
+                        PackageManager.ResolveInfoFlags.of(flags)
+                );
+            } else {
+                activities = queryIntentActivitiesLegacy(packageManager, intent, (int) flags);
+            }
+            return !activities.isEmpty();
+        } catch (SecurityException ignored) {
+            return false;
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static List<ResolveInfo> queryIntentActivitiesLegacy(
+            PackageManager packageManager,
+            Intent intent,
+            int flags
+    ) {
+        return packageManager.queryIntentActivities(intent, flags);
     }
 
     private static boolean isApplicationDeepSleeping(PackageManager packageManager, String packageName) {
