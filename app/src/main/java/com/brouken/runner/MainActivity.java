@@ -19,6 +19,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -101,13 +103,23 @@ public class MainActivity extends Activity {
     private void configureWindow() {
         getWindow().setStatusBarColor(COLOR_BACKGROUND);
         getWindow().setNavigationBarColor(COLOR_BACKGROUND);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().getInsetsController().setSystemBarsAppearance(
+                    0,
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                            | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            );
+        }
     }
 
     private void createConsole() {
         final LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(COLOR_BACKGROUND);
-        root.setPadding(dp(20), dp(24), dp(20), dp(16));
+        applySystemBarInsets(root);
 
         final TextView title = consoleText(20, COLOR_PRIMARY, Typeface.BOLD);
         title.setText(R.string.console_title);
@@ -164,6 +176,31 @@ public class MainActivity extends Activity {
         root.addView(rescanButton, buttonLayoutParams(dp(8)));
 
         setContentView(root);
+    }
+
+    private void applySystemBarInsets(View root) {
+        root.setOnApplyWindowInsetsListener((view, windowInsets) -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                final android.graphics.Insets systemBars = windowInsets.getInsets(
+                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+                );
+                view.setPadding(
+                        dp(20) + systemBars.left,
+                        dp(24) + systemBars.top,
+                        dp(20) + systemBars.right,
+                        dp(16) + systemBars.bottom
+                );
+            } else {
+                view.setPadding(
+                        dp(20) + windowInsets.getSystemWindowInsetLeft(),
+                        dp(24) + windowInsets.getSystemWindowInsetTop(),
+                        dp(20) + windowInsets.getSystemWindowInsetRight(),
+                        dp(16) + windowInsets.getSystemWindowInsetBottom()
+                );
+            }
+            return windowInsets;
+        });
+        root.requestApplyInsets();
     }
 
     private LinearLayout.LayoutParams buttonLayoutParams(int topMargin) {
@@ -368,8 +405,8 @@ public class MainActivity extends Activity {
         final boolean hasFailures = !packagesWithStatus(AppStatus.FAILED).isEmpty();
         activateButton.setEnabled(!activationInProgress && hasQueuedApps);
         rescanButton.setEnabled(!activationInProgress);
-        playStoreButton.setEnabled(!activationInProgress && !packageEntries.isEmpty() && !hasQueuedApps && !hasFailures);
-        deepSleepButton.setVisibility(hasFailures ? View.VISIBLE : View.GONE);
+        playStoreButton.setEnabled(!activationInProgress);
+        deepSleepButton.setVisibility(View.VISIBLE);
     }
 
     private TextView packageRow(PackageEntry entry) {
@@ -490,7 +527,7 @@ public class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 applicationInfo = packageManager.getApplicationInfo(
                         packageName,
-                        PackageManager.ApplicationInfoFlags.of(0)
+                        PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_DISABLED_COMPONENTS)
                 );
             } else {
                 applicationInfo = getApplicationInfoLegacy(packageManager, packageName);
@@ -506,15 +543,17 @@ public class MainActivity extends Activity {
             PackageManager packageManager,
             String packageName
     ) throws PackageManager.NameNotFoundException {
-        return packageManager.getApplicationInfo(packageName, 0);
+        return packageManager.getApplicationInfo(packageName, PackageManager.MATCH_DISABLED_COMPONENTS);
     }
 
     @SuppressWarnings("deprecation")
     private static Iterable<ApplicationInfo> getInstalledApplications(PackageManager packageManager) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0));
+            return packageManager.getInstalledApplications(
+                    PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_DISABLED_COMPONENTS)
+            );
         }
-        return packageManager.getInstalledApplications(0);
+        return packageManager.getInstalledApplications(PackageManager.MATCH_DISABLED_COMPONENTS);
     }
 
     @SuppressWarnings("deprecation")
