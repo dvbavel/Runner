@@ -1,7 +1,9 @@
 package com.brouken.runner;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.InstallSourceInfo;
 import android.content.pm.PackageManager;
@@ -17,25 +19,57 @@ public class MainActivity extends Activity {
 
         final PackageManager packageManager = getPackageManager();
         for (ApplicationInfo applicationInfo : getInstalledApplications(packageManager)) {
-            if ((applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
-                if (!applicationInfo.enabled) {
-                    if (isInstalledFromPlayStore(packageManager, applicationInfo.packageName)) {
-                        final Intent launchIntent = packageManager.getLaunchIntentForPackage(applicationInfo.packageName);
-                        if (launchIntent != null) {
-                            startActivity(launchIntent);
-                        }
-                    }
-                }
+            if ((applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0
+                    || applicationInfo.enabled
+                    || !isInstalledFromPlayStore(packageManager, applicationInfo.packageName)) {
+                continue;
+            }
+
+            launchPackage(packageManager, applicationInfo.packageName);
+        }
+
+        openPlayStore(packageManager);
+
+        finish();
+    }
+
+    private void launchPackage(PackageManager packageManager, String packageName) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            try {
+                packageManager.getLaunchIntentSenderForPackage(packageName)
+                        .sendIntent(this, 0, null, null, null);
+                return;
+            } catch (IntentSender.SendIntentException | SecurityException ignored) {
+                // Fall back to the regular launch intent below.
             }
         }
 
-        final Intent intent = new Intent("com.google.android.finsky.VIEW_MY_DOWNLOADS")
+        final Intent launchIntent = packageManager.getLaunchIntentForPackage(packageName);
+        if (launchIntent != null) {
+            startActivitySafely(launchIntent);
+        }
+    }
+
+    private void openPlayStore(PackageManager packageManager) {
+        final Intent downloadsIntent = new Intent("com.google.android.finsky.VIEW_MY_DOWNLOADS")
                 .setPackage(PLAY_STORE_PACKAGE);
-        if (intent.resolveActivity(getPackageManager()) != null) {
-            startActivity(intent);
+        if (startActivitySafely(downloadsIntent)) {
+            return;
         }
 
-        finish();
+        final Intent launchIntent = packageManager.getLaunchIntentForPackage(PLAY_STORE_PACKAGE);
+        if (launchIntent != null) {
+            startActivitySafely(launchIntent);
+        }
+    }
+
+    private boolean startActivitySafely(Intent intent) {
+        try {
+            startActivity(intent);
+            return true;
+        } catch (ActivityNotFoundException | SecurityException ignored) {
+            return false;
+        }
     }
 
     @SuppressWarnings("deprecation")
