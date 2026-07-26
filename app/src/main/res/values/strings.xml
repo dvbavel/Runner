@@ -1,3 +1,19 @@
 <resources>
     <string name="app_name">Runner</string>
+    <string name="console_title">RUNNER // DEEP SLEEP CONSOLE</string>
+    <string name="console_target">TARGET // ANDROID 16 | ONE UI 8.5</string>
+    <string name="console_no_apps">[--] No deep sleeping apps detected.</string>
+    <string name="status_scanning">STATUS // SCANNING DEEP SLEEP APPS&#8230;</string>
+    <string name="status_ready">STATUS // READY // %1$d DEEP SLEEP APP(S) QUEUED</string>
+    <string name="status_activating">STATUS // ACTIVATING %1$d/%2$d // ATTEMPT %3$d/%4$d</string>
+    <string name="status_no_apps">STATUS // NO APPS QUEUED</string>
+    <string name="status_complete">STATUS // COMPLETE // %1$d APP(S) ACTIVE</string>
+    <string name="action_activate">&gt; RUN ACTIVATION</string>
+    <string name="action_play_store">&gt; OPEN PLAY STORE</string>
+    <string name="action_deep_sleep_settings">&gt; OPEN DEEP SLEEP SETTINGS</string>
+    <string name="action_rescan">&gt; RESCAN</string>
+    <plurals name="status_failed">
+        <item quantity="one">STATUS // 1 APP STILL DISABLED</item>
+        <item quantity="other">STATUS // %d APPS STILL DISABLED</item>
+    </plurals>
 </resources>
