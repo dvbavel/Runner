@@ -35,6 +35,20 @@ android {
     }
 }
 
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("runner-dyon-${android.defaultConfig.versionName}.apk")
+        }
+    }
+}
+
+tasks.register('printVersionName') {
+    doLast {
+        println(android.defaultConfig.versionName)
+    }
+}
+
 dependencies {
 
 }
