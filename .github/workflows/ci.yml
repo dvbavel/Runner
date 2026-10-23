@@ -3,8 +3,6 @@ name: CI
 on:
   push:
     branches: ["**"]
-  pull_request:
-    branches: [main]
   workflow_dispatch: {}
 
 permissions:
@@ -12,7 +10,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Op main nooit een lopende release-build afbreken.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   # Het enige dat per repository verschilt.
@@ -51,7 +50,7 @@ jobs:
   release:
     name: Release APK
     needs: checks
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
