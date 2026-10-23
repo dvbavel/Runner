@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark base theme so the edge-to-edge system bars draw light icons over the console. -->
+    <style name="Theme.Runner" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/console_background</item>
+        <item name="android:colorBackground">@color/console_background</item>
+    </style>
+</resources>
