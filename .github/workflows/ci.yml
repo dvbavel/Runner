@@ -75,12 +75,15 @@ jobs:
 
       - name: Read app version
         id: version
-        run: echo "name=$(./gradlew -q printVersionName)" >> "$GITHUB_OUTPUT"
+        run: echo "name=$(./gradlew -q printVersionName | tail -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Name APK
+        run: cp app/build/outputs/apk/release/*.apk "$APP_NAME-${{ steps.version.outputs.name }}.apk"
 
       - name: Upload release APK
         uses: actions/upload-artifact@v7
         with:
           name: ${{ env.APP_NAME }}-${{ steps.version.outputs.name }}
-          path: app/build/outputs/apk/release/${{ env.APP_NAME }}-${{ steps.version.outputs.name }}.apk
+          path: ${{ env.APP_NAME }}-${{ steps.version.outputs.name }}.apk
           if-no-files-found: error
           retention-days: 30
