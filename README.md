@@ -17,3 +17,7 @@ This is pretty much how _Runner_ works: it shows the detected deep sleeping apps
 5. Once updated, turn off the display and all these apps will be put to sleep again
 
 If an app remains disabled after three attempts, Runner marks it with `[!!]` and offers Samsung's _Deep sleeping apps_ screen. This prevents an incomplete activation pass from looking successful.
+
+If the system does not let Runner return to the front on its own (Android 17 restricts launches from the background), the console shows `PAUSED // OPEN RUNNER TO CONTINUE`. Open Runner again from the launcher and the activation pass continues where it stopped.
+
+Runner targets Android 17 (API 37) and One UI 9, and runs on Android 8.0 and newer.

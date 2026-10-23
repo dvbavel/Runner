@@ -17,6 +17,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
@@ -64,6 +65,8 @@ public class MainActivity extends Activity {
     private int attempt;
     private int launchedInAttempt;
     private boolean activationInProgress;
+    private boolean resumed;
+    private boolean waitingForReturn;
     private String statusMessage;
 
     @Override
@@ -87,9 +90,21 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
+        if (waitingForReturn) {
+            // The automatic return was blocked; the user brought Runner back, so carry on.
+            waitingForReturn = false;
+            handler.postDelayed(this::launchNextPackage, RUNNER_RETURN_SETTLE_DURATION_MS);
+        }
         if (statusView != null) {
             renderConsole();
         }
+    }
+
+    @Override
+    protected void onPause() {
+        resumed = false;
+        super.onPause();
     }
 
     @Override
@@ -100,9 +115,14 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    @SuppressWarnings("deprecation")
     private void configureWindow() {
-        getWindow().setStatusBarColor(COLOR_BACKGROUND);
-        getWindow().setNavigationBarColor(COLOR_BACKGROUND);
+        // From Android 15 the app is always edge-to-edge and bar colors are ignored;
+        // the console background is drawn behind the bars instead.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            getWindow().setStatusBarColor(COLOR_BACKGROUND);
+            getWindow().setNavigationBarColor(COLOR_BACKGROUND);
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getWindow().setNavigationBarContrastEnforced(false);
         }
@@ -171,6 +191,7 @@ public class MainActivity extends Activity {
         setContentView(root);
     }
 
+    @SuppressWarnings("deprecation")
     private void applySystemBarInsets(View root) {
         root.setOnApplyWindowInsetsListener((view, windowInsets) -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -324,7 +345,21 @@ public class MainActivity extends Activity {
 
     private void returnToConsoleAndContinue() {
         returnToConsole();
-        handler.postDelayed(this::launchNextPackage, RUNNER_RETURN_SETTLE_DURATION_MS);
+        handler.postDelayed(this::continueAfterReturn, RUNNER_RETURN_SETTLE_DURATION_MS);
+    }
+
+    private void continueAfterReturn() {
+        if (resumed) {
+            launchNextPackage();
+            return;
+        }
+
+        // The system blocked the background return (Android 17 hardened background
+        // activity launches); launching the next app from the background would be
+        // blocked too, so pause until the user reopens Runner.
+        waitingForReturn = true;
+        statusMessage = getString(R.string.status_waiting_for_return);
+        renderConsole();
     }
 
     private void verifyPackages() {
@@ -370,7 +405,7 @@ public class MainActivity extends Activity {
     private void returnToConsole() {
         final Intent intent = new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        startActivitySafely(intent);
+        startActivityFromBackground(intent);
     }
 
     private List<String> packagesWithStatus(AppStatus status) {
@@ -438,59 +473,85 @@ public class MainActivity extends Activity {
         }
 
         final Intent launchIntent = packageManager.getLaunchIntentForPackage(packageName);
-        return launchIntent != null && startActivitySafely(launchIntent);
+        return launchIntent != null && startActivityFromForeground(launchIntent);
     }
 
     private void openPlayStore(PackageManager packageManager) {
         final Intent downloadsIntent = new Intent("com.google.android.finsky.VIEW_MY_DOWNLOADS")
                 .setPackage(PLAY_STORE_PACKAGE);
-        if (startActivitySafely(downloadsIntent)) {
+        if (startActivityFromForeground(downloadsIntent)
+                || startLaunchIntent(packageManager, PLAY_STORE_PACKAGE)) {
             return;
         }
-
-        final Intent launchIntent = packageManager.getLaunchIntentForPackage(PLAY_STORE_PACKAGE);
-        if (launchIntent != null) {
-            startActivitySafely(launchIntent);
-        }
+        reportLaunchFailure();
     }
 
     private void openSamsungDeepSleepSettings() {
-        final Intent intent = new Intent("com.samsung.android.sm.ACTION_OPEN_CHECKABLE_LISTACTIVITY")
+        final Intent deepSleepList = new Intent("com.samsung.android.sm.ACTION_OPEN_CHECKABLE_LISTACTIVITY")
                 .setPackage(SAMSUNG_DEVICE_CARE_PACKAGE)
                 .putExtra("activity_type", 1);
-        startActivitySafely(intent);
+        // Fall back to Device Care itself, then to system settings, in case a One UI
+        // release renames the deep sleeping apps screen.
+        if (startActivityFromForeground(deepSleepList)
+                || startLaunchIntent(packageManager, SAMSUNG_DEVICE_CARE_PACKAGE)
+                || startActivityFromForeground(new Intent(Settings.ACTION_SETTINGS))) {
+            return;
+        }
+        reportLaunchFailure();
+    }
+
+    private boolean startLaunchIntent(PackageManager packageManager, String packageName) {
+        final Intent launchIntent = packageManager.getLaunchIntentForPackage(packageName);
+        return launchIntent != null && startActivityFromForeground(launchIntent);
+    }
+
+    private void reportLaunchFailure() {
+        statusMessage = getString(R.string.status_launch_failed);
+        renderConsole();
     }
 
     private void startIntentSenderWithUserInitiatedPrivileges(IntentSender intentSender)
             throws IntentSender.SendIntentException {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startIntentSender(intentSender, null, 0, 0, 0, createSenderActivityOptions());
+            startIntentSender(intentSender, null, 0, 0, 0, createSenderActivityOptions(true));
         } else {
             intentSender.sendIntent(this, 0, null, null, null);
         }
     }
 
-    private boolean startActivitySafely(Intent intent) {
+    // Runner is on screen here, so a direct start needs no background launch privileges
+    // and reports unresolvable intents, which keeps the fallback chains working.
+    private boolean startActivityFromForeground(Intent intent) {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                final ActivityOptions creatorOptions = ActivityOptions.makeBasic()
-                        .setPendingIntentCreatorBackgroundActivityStartMode(
-                                backgroundActivityStartMode()
-                        );
-                final PendingIntent pendingIntent = PendingIntent.getActivity(
-                        this,
-                        0,
-                        intent,
-                        PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE,
-                        creatorOptions.toBundle()
-                );
-                pendingIntent.send(this, 0, null, null, null, null, createSenderActivityOptions());
-            } else {
-                startActivity(intent);
-            }
+            startActivity(intent);
             return true;
-        } catch (ActivityNotFoundException
-                | IllegalArgumentException
+        } catch (ActivityNotFoundException | SecurityException ignored) {
+            return false;
+        }
+    }
+
+    // Used to bring Runner back while another app is in front, which requires Runner
+    // to grant its background activity launch privileges as both creator and sender.
+    private boolean startActivityFromBackground(Intent intent) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return startActivityFromForeground(intent);
+        }
+
+        try {
+            final ActivityOptions creatorOptions = ActivityOptions.makeBasic()
+                    .setPendingIntentCreatorBackgroundActivityStartMode(
+                            backgroundActivityStartMode(false)
+                    );
+            final PendingIntent pendingIntent = PendingIntent.getActivity(
+                    this,
+                    0,
+                    intent,
+                    PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE,
+                    creatorOptions.toBundle()
+            );
+            pendingIntent.send(this, 0, null, null, null, null, createSenderActivityOptions(false));
+            return true;
+        } catch (IllegalArgumentException
                 | PendingIntent.CanceledException
                 | SecurityException ignored) {
             return false;
@@ -498,17 +559,19 @@ public class MainActivity extends Activity {
     }
 
     @SuppressLint("NewApi")
-    private Bundle createSenderActivityOptions() {
+    private Bundle createSenderActivityOptions(boolean whileVisible) {
         return ActivityOptions.makeBasic()
-                .setPendingIntentBackgroundActivityStartMode(backgroundActivityStartMode())
+                .setPendingIntentBackgroundActivityStartMode(backgroundActivityStartMode(whileVisible))
                 .toBundle();
     }
 
     @SuppressLint("NewApi")
     @SuppressWarnings("deprecation")
-    private int backgroundActivityStartMode() {
+    private int backgroundActivityStartMode(boolean whileVisible) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-            return ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS;
+            return whileVisible
+                    ? ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE
+                    : ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS;
         }
         return ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED;
     }
